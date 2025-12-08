@@ -72,7 +72,7 @@ Here's a breakdown of all the available configuration items:
 | showDays        | Y        | 7             | Number of days to show |
 | showHighlighted | Y        | true          | Show the crown for the highlighted days |
 | highlightedEmoji | Y       | 👑            | Change the highlighted emoji to what you want ... find one at [Emojipedia](https://emojipedia.org/). |
-| lockedInEntity  | Y        | N/A           | Name of a calendar or sensor entity that tracks which nights were locked-in as green for billing purposes. See [Tracking Locked-in Green Nights](#tracking-locked-in-green-nights) below. |
+| lockedInEntity  | Y        | N/A           | Name of a template sensor entity that tracks which nights were locked-in as green for billing purposes. The entity should have a `locked_dates` attribute containing a list of ISO date strings. See [Tracking Locked-in Green Nights](#tracking-locked-in-green-nights) below. |
 | lockedInEmoji   | Y        | 👑            | Emoji to display for locked-in green nights (shown in grayscale when no longer highlighted) |
 | hour12          | Y        | true          | 12 or 24 hour times displayed |
 | indexCase       | Y        | uc            | Changes the Index case  (MEDIUM etc) ... uc (Upper Case), ucf (Upper Case First), lc (lower case) |
@@ -159,17 +159,6 @@ The card will now display:
 - No crown for nights that were never highlighted
 
 **Note:** You may want to add automations to reset the input booleans periodically (e.g., when the night has passed) to prevent them from staying on indefinitely.
-
-##### Alternative: Using a Calendar
-
-You can also use a Home Assistant calendar to track green nights. Create a local calendar called "Green Nights" and use an automation to add all-day events when nights are highlighted. Then reference the calendar entity in your card configuration:
-
-```yaml
-type: custom:octopus-energy-greenness-forecast-card
-currentEntity: sensor.octopus_energy_<your_id_here>_greenness_forecast_current_index
-lockedInEntity: calendar.green_nights
-showDays: 7
-```
 
 #### A note on colouring
 

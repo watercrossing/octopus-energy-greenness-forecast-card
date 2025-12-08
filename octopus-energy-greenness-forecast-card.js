@@ -146,14 +146,9 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
       if (lockedInState && lockedInState.attributes) {
         // Support for template sensor with locked_dates attribute
         if (lockedInState.attributes.locked_dates) {
-          lockedInDates = lockedInState.attributes.locked_dates.filter(date => date !== null && date !== 'None');
-        }
-        // Support for calendar entity
-        else if (lockedInState.attributes.all_day && lockedInState.attributes.start_time) {
-          // For calendar, we need to check if events exist for specific dates
-          // This is a simplified approach - in practice, you might want to query calendar events
-          const startDate = new Date(lockedInState.attributes.start_time);
-          lockedInDates.push(startDate.toISOString().split('T')[0]);
+          lockedInDates = lockedInState.attributes.locked_dates.filter(date => 
+            date != null && date !== undefined && date !== '' && date !== 'None'
+          );
         }
       }
     }
