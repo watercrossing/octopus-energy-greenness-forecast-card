@@ -109,7 +109,10 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
             td.blue {
                 border: 2px solid #391CD9;
                 background-color: #391CD9;
-            }        
+            }
+            .locked-in-emoji {
+                filter: grayscale(100%) opacity(60%);
+            }
             `;
       card.appendChild(style);
       card.appendChild(this.content);
@@ -135,6 +138,25 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
 
     const entityId = config.currentEntity;
     const currentState = hass.states[entityId];
+
+    // Get locked-in dates if the entity is configured
+    let lockedInDates = [];
+    if (config.lockedInEntity) {
+      const lockedInState = hass.states[config.lockedInEntity];
+      if (lockedInState && lockedInState.attributes) {
+        // Support for template sensor with locked_dates attribute
+        if (lockedInState.attributes.locked_dates) {
+          lockedInDates = lockedInState.attributes.locked_dates.filter(date => date !== null && date !== 'None');
+        }
+        // Support for calendar entity
+        else if (lockedInState.attributes.all_day && lockedInState.attributes.start_time) {
+          // For calendar, we need to check if events exist for specific dates
+          // This is a simplified approach - in practice, you might want to query calendar events
+          const startDate = new Date(lockedInState.attributes.start_time);
+          lockedInDates.push(startDate.toISOString().split('T')[0]);
+        }
+      }
+    }
 
     // Validate entity and forecast data
     if (
@@ -178,8 +200,16 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
       const dateDisplay = `${day} ${dayNum} ${month}`; // Adjusted format
       let highlighted = "&nbsp;"; // Initialize as empty
 
+      // Check if this date is locked-in
+      const dateStr = startTime.toISOString().split('T')[0];
+      const isLockedIn = lockedInDates.includes(dateStr);
+
       if (isHighlighted && config.showHighlighted) {
         highlighted = config.highlightedEmoji;
+      } else if (isLockedIn && config.showHighlighted) {
+        // Show the locked-in emoji in grayscale if not currently highlighted
+        const lockedInEmojiToUse = config.lockedInEmoji || config.highlightedEmoji;
+        highlighted = `<span class="locked-in-emoji">${lockedInEmojiToUse}</span>`;
       }
 
       const timeFormatOptions = {
@@ -248,6 +278,7 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
       showDays: 7,
       showHighlighted: true,
       highlightedEmoji: "👑",
+      lockedInEmoji: "👑",
       hour12: true,
     };
     this._config = {

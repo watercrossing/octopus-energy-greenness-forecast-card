@@ -72,8 +72,95 @@ Here's a breakdown of all the available configuration items:
 | showDays        | Y        | 7             | Number of days to show |
 | showHighlighted | Y        | true          | Show the crown for the highlighted days |
 | highlightedEmoji | Y       | 👑            | Change the highlighted emoji to what you want ... find one at [Emojipedia](https://emojipedia.org/). |
+| lockedInEntity  | Y        | N/A           | Name of a calendar or sensor entity that tracks which nights were locked-in as green for billing purposes. See [Tracking Locked-in Green Nights](#tracking-locked-in-green-nights) below. |
+| lockedInEmoji   | Y        | 👑            | Emoji to display for locked-in green nights (shown in grayscale when no longer highlighted) |
 | hour12          | Y        | true          | 12 or 24 hour times displayed |
 | indexCase       | Y        | uc            | Changes the Index case  (MEDIUM etc) ... uc (Upper Case), ucf (Upper Case First), lc (lower case) |
+
+#### Tracking Locked-in Green Nights
+
+Octopus Energy regularly updates which nights qualify as greener nights. Some nights that were previously marked as green may no longer be green in the forecast, but for billing purposes, Octopus still recognizes them as green nights if they were highlighted when you saw them.
+
+To track these "locked-in" green nights, you can use Home Assistant to automatically record when a night becomes highlighted, and the card will display a faded crown (👑) for those nights even if they're no longer highlighted in the current forecast.
+
+##### Setup with Input Boolean Helpers
+
+1. **Create Input Boolean Helpers** for tracking green nights. Go to Settings → Devices & Services → Helpers, and create one boolean for each day you want to track. For example:
+   - `input_boolean.green_night_mon`
+   - `input_boolean.green_night_tue`
+   - `input_boolean.green_night_wed`
+   - etc.
+
+2. **Create an Automation** to set these booleans when nights are highlighted. Here's an example automation:
+
+```yaml
+automation:
+  - alias: "Track Green Nights - Monday"
+    trigger:
+      - platform: state
+        entity_id: sensor.octopus_energy_<your_id_here>_greenness_forecast_current_index
+    condition:
+      - condition: template
+        value_template: >
+          {% set tomorrow = now().date() + timedelta(days=1) %}
+          {% if tomorrow.weekday() == 0 %}
+            {% set forecast = state_attr('sensor.octopus_energy_<your_id_here>_greenness_forecast_current_index', 'forecast') %}
+            {% for day in forecast if day.start[:10] == tomorrow.isoformat() %}
+              {{ day.is_highlighted }}
+            {% endfor %}
+          {% else %}
+            false
+          {% endif %}
+    action:
+      - service: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.green_night_mon
+```
+
+You would create similar automations for each day of the week.
+
+3. **Create a Template Sensor** to expose the locked-in nights in a format the card can use:
+
+```yaml
+template:
+  - sensor:
+      - name: "Green Nights Locked In"
+        state: "{{ now().isoformat() }}"
+        attributes:
+          locked_dates:
+            - "{{ (now().date() + timedelta(days=1)).isoformat() if is_state('input_boolean.green_night_mon', 'on') and (now().date() + timedelta(days=1)).weekday() == 0 else none }}"
+            - "{{ (now().date() + timedelta(days=1)).isoformat() if is_state('input_boolean.green_night_tue', 'on') and (now().date() + timedelta(days=1)).weekday() == 1 else none }}"
+            - "{{ (now().date() + timedelta(days=1)).isoformat() if is_state('input_boolean.green_night_wed', 'on') and (now().date() + timedelta(days=1)).weekday() == 2 else none }}"
+            - "{{ (now().date() + timedelta(days=1)).isoformat() if is_state('input_boolean.green_night_thu', 'on') and (now().date() + timedelta(days=1)).weekday() == 3 else none }}"
+            - "{{ (now().date() + timedelta(days=1)).isoformat() if is_state('input_boolean.green_night_fri', 'on') and (now().date() + timedelta(days=1)).weekday() == 4 else none }}"
+            - "{{ (now().date() + timedelta(days=1)).isoformat() if is_state('input_boolean.green_night_sat', 'on') and (now().date() + timedelta(days=1)).weekday() == 5 else none }}"
+            - "{{ (now().date() + timedelta(days=1)).isoformat() if is_state('input_boolean.green_night_sun', 'on') and (now().date() + timedelta(days=1)).weekday() == 6 else none }}"
+```
+
+4. **Update your card configuration** to use the locked-in entity:
+
+```yaml
+type: custom:octopus-energy-greenness-forecast-card
+currentEntity: sensor.octopus_energy_<your_id_here>_greenness_forecast_current_index
+lockedInEntity: sensor.green_nights_locked_in
+showDays: 7
+```
+
+The card will now display:
+- A full-color crown (👑) for nights that are currently highlighted
+- A grayscale crown for nights that were locked-in but are no longer highlighted
+- No crown for nights that were never highlighted
+
+##### Alternative: Using a Calendar
+
+You can also use a Home Assistant calendar to track green nights. Create a local calendar called "Green Nights" and use an automation to add all-day events when nights are highlighted. Then reference the calendar entity in your card configuration:
+
+```yaml
+type: custom:octopus-energy-greenness-forecast-card
+currentEntity: sensor.octopus_energy_<your_id_here>_greenness_forecast_current_index
+lockedInEntity: calendar.green_nights
+showDays: 7
+```
 
 #### A note on colouring
 
