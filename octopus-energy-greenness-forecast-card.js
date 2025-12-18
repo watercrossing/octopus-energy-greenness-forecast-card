@@ -172,7 +172,9 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
     // Generate table rows for each day
     sortedDays.forEach((dateKey) => {
       const dayData = dayAggregates[dateKey];
-      const date = new Date(dateKey + 'T12:00:00Z'); // Parse date at noon UTC to avoid timezone issues
+      // Parse date at noon UTC to avoid timezone issues
+      // dateKey is expected to be in YYYY-MM-DD format
+      const date = new Date(dateKey + 'T12:00:00Z');
 
       const day = date.toLocaleDateString("en-US", {
         weekday: "short",
@@ -350,10 +352,16 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
 
   scoreToIndex(score) {
     // Convert score to greenness index (simplified mapping)
-    if (score >= 80) return "very high";
-    if (score >= 60) return "high";
-    if (score >= 40) return "medium";
-    if (score >= 20) return "low";
+    // These thresholds approximate the greenness index levels used by Octopus Energy
+    const VERY_HIGH_THRESHOLD = 80;
+    const HIGH_THRESHOLD = 60;
+    const MEDIUM_THRESHOLD = 40;
+    const LOW_THRESHOLD = 20;
+    
+    if (score >= VERY_HIGH_THRESHOLD) return "very high";
+    if (score >= HIGH_THRESHOLD) return "high";
+    if (score >= MEDIUM_THRESHOLD) return "medium";
+    if (score >= LOW_THRESHOLD) return "low";
     return "very low";
   }
 
@@ -381,7 +389,7 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
 
   setConfig(config) {
     if (!config.currentEntity && !config.historyEntity) {
-      throw new Error("You need to define either currentEntity or historyEntity for greenness data.");
+      throw new Error("You need to define at least one of currentEntity or historyEntity for greenness data.");
     }
     const defaultConfig = {
       title: "Greenness Forecast",
