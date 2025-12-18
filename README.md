@@ -45,7 +45,7 @@ The easiest way to find that entity name is by opening the Search within Home As
 
 Here's an example yaml configuration - replacing `<your_id_here>` with your data from above.
 
-
+**Standard Forecast Mode:**
 ```
 type: custom:octopus-energy-greenness-forecast-card
 currentEntity: sensor.octopus_energy_<your_id_here>_greenness_forecast_current_index
@@ -59,17 +59,35 @@ hour12: false
 indexCase: ucf
 ```
 
+**History Tracking Mode:**
+```
+type: custom:octopus-energy-greenness-forecast-card
+historyEntity: sensor.greenness_history_tracker
+lowLimit: 15
+mediumLimit: 20
+highLimit: 30
+showDays: 14
+indexCase: ucf
+```
+
+When using `historyEntity`, the card will:
+- Display the min-max score range and current score for each day (e.g., "55-87 (87)" or just "55" if no variation)
+- Show a crown emoji for any day that was ever highlighted
+- Display the crown in grayscale if the day was previously highlighted but is not currently highlighted
+- Automatically disable time display (showTimes is forced to false)
+
 Here's a breakdown of all the available configuration items:
 
 | Name          | Optional | Default       | Description   |
 |-----------------|----------|---------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| currentEntity   | N        | N/A           | Name of the sensor that contains the greenness indexes, generated from the `HomeAssistant-OctopusEnergy` integration |
+| currentEntity   | N*       | N/A           | Name of the sensor that contains the greenness indexes, generated from the `HomeAssistant-OctopusEnergy` integration. *Required if historyEntity is not set. |
+| historyEntity   | Y        | N/A           | Name of the sensor that contains historical greenness data in a 'History' attribute. When set, the card will display historical tracking with min-max ranges and crown indicators. showTimes is automatically set to false when using historyEntity. |
 | title           | Y        | "Greenness Forecast" | The title of the card in the dashboard (can also be set to null) |
 | lowLimit        | Y        | 20            | If the value is above `lowLimit`, the row is marked dark green. (this option is only applicable for import rates |
 | mediumLimit     | Y        | 40            | If the value is above `mediumLimit`, the row is marked orange. |
 | highLimit       | Y        | 60            | If the value is above `highLimit`, the row is marked red. |
-| showTimes       | Y        | false         | Whether you want to show the times this greenness index applies, normally 11:00PM - 06:00 AM |
-| showDays        | Y        | 7             | Number of days to show |
+| showTimes       | Y        | false         | Whether you want to show the times this greenness index applies, normally 11:00PM - 06:00 AM. Automatically disabled when historyEntity is set. |
+| showDays        | Y        | 7 (14 for history) | Number of days to show. Defaults to 7 for forecast mode, 14 for history mode. |
 | showHighlighted | Y        | true          | Show the crown for the highlighted days |
 | highlightedEmoji | Y       | 👑            | Change the highlighted emoji to what you want ... find one at [Emojipedia](https://emojipedia.org/). |
 | hour12          | Y        | true          | 12 or 24 hour times displayed |

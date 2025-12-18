@@ -109,7 +109,10 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
             td.blue {
                 border: 2px solid #391CD9;
                 background-color: #391CD9;
-            }        
+            }
+            .crown-grayscale {
+                filter: grayscale(100%);
+            }
             `;
       card.appendChild(style);
       card.appendChild(this.content);
@@ -133,6 +136,91 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
     }
     this.lastRefreshTimestamp = currentTime;
 
+    // Check if historyEntity is configured
+    if (config.historyEntity) {
+      this.renderHistoryView(hass, config);
+    } else {
+      this.renderForecastView(hass, config);
+    }
+  }
+
+  renderHistoryView(hass, config) {
+    const historyEntityId = config.historyEntity;
+    const historyState = hass.states[historyEntityId];
+
+    // Validate history entity and data
+    if (
+      !historyState ||
+      !historyState.attributes ||
+      !historyState.attributes.History
+    ) {
+      this.content.innerHTML = `<div class="error">Invalid history entity or missing History attribute.</div>`;
+      return;
+    }
+
+    const historyData = historyState.attributes.History;
+    const showDays = config.showDays || 14;
+
+    // Parse and aggregate history data by day
+    const dayAggregates = this.aggregateHistoryByDay(historyData);
+
+    // Get sorted days (most recent first) and limit to showDays
+    const sortedDays = Object.keys(dayAggregates).sort().reverse().slice(0, showDays);
+
+    let tables = "<table class='main'><tbody>";
+
+    // Generate table rows for each day
+    sortedDays.forEach((dateKey) => {
+      const dayData = dayAggregates[dateKey];
+      // Parse date at noon UTC to avoid timezone issues
+      // dateKey is expected to be in YYYY-MM-DD format
+      const date = new Date(dateKey + 'T12:00:00Z');
+
+      const day = date.toLocaleDateString("en-US", {
+        weekday: "short",
+        timeZone: "Europe/London",
+      });
+      const month = date.toLocaleDateString("en-US", {
+        month: "short",
+        timeZone: "Europe/London",
+      });
+      const dayNum = date.toLocaleDateString("en-US", {
+        day: "numeric",
+        timeZone: "Europe/London",
+      });
+
+      const dateDisplay = `${day} ${dayNum} ${month}`;
+      
+      // Determine crown display
+      let crownDisplay = "&nbsp;";
+      if (dayData.everHighlighted && config.showHighlighted) {
+        const crownClass = dayData.currentHighlighted ? "" : "crown-grayscale";
+        crownDisplay = `<span class="${crownClass}">${config.highlightedEmoji}</span>`;
+      }
+
+      // Format score display
+      const scoreDisplay = dayData.minScore === dayData.maxScore 
+        ? `${dayData.currentScore}` 
+        : `${dayData.minScore}-${dayData.maxScore} (${dayData.currentScore})`;
+
+      const bgColor = this.determineColor(dayData.currentScore, config);
+      const greennessIndex = this.formatIndexCase(
+        this.scoreToIndex(dayData.currentScore),
+        config.indexCase
+      );
+
+      tables += `<tr class="forecast_row">
+                <td class="time time_${bgColor}">${dateDisplay} ${crownDisplay}</td>
+                <td class="forecast_score ${bgColor}">${scoreDisplay}</td>
+                <td class="forecast_index ${bgColor}">${greennessIndex}</td>
+            </tr>`;
+    });
+
+    tables += "</tbody></table>";
+    this.content.innerHTML = tables;
+  }
+
+  renderForecastView(hass, config) {
     const entityId = config.currentEntity;
     const currentState = hass.states[entityId];
 
@@ -217,6 +305,66 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
     this.content.innerHTML = tables;
   }
 
+  aggregateHistoryByDay(historyData) {
+    const dayAggregates = {};
+
+    // Iterate through each day in the history
+    Object.keys(historyData).forEach((dateKey) => {
+      const dayEntries = historyData[dateKey];
+      const scores = [];
+      let everHighlighted = false;
+      let currentHighlighted = false;
+      let latestTimestamp = null;
+      let currentScore = null;
+
+      // Iterate through each timestamp entry for this day
+      Object.keys(dayEntries).forEach((timestamp) => {
+        const entry = dayEntries[timestamp];
+        const score = entry.score;
+        const isHighlighted = entry.is_highlighted;
+
+        scores.push(score);
+        
+        if (isHighlighted) {
+          everHighlighted = true;
+        }
+
+        // Track the most recent entry
+        if (!latestTimestamp || timestamp > latestTimestamp) {
+          latestTimestamp = timestamp;
+          currentScore = score;
+          currentHighlighted = isHighlighted;
+        }
+      });
+
+      // Store aggregated data for this day
+      dayAggregates[dateKey] = {
+        minScore: Math.min(...scores),
+        maxScore: Math.max(...scores),
+        currentScore: currentScore,
+        everHighlighted: everHighlighted,
+        currentHighlighted: currentHighlighted
+      };
+    });
+
+    return dayAggregates;
+  }
+
+  scoreToIndex(score) {
+    // Convert score to greenness index (simplified mapping)
+    // These thresholds approximate the greenness index levels used by Octopus Energy
+    const VERY_HIGH_THRESHOLD = 80;
+    const HIGH_THRESHOLD = 60;
+    const MEDIUM_THRESHOLD = 40;
+    const LOW_THRESHOLD = 20;
+    
+    if (score >= VERY_HIGH_THRESHOLD) return "very high";
+    if (score >= HIGH_THRESHOLD) return "high";
+    if (score >= MEDIUM_THRESHOLD) return "medium";
+    if (score >= LOW_THRESHOLD) return "low";
+    return "very low";
+  }
+
   determineColor(score, config) {
     // Determine if fixed thresholds are set and use them, otherwise use gradient
     if (score < config.lowLimit) return "red";
@@ -240,8 +388,8 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
   }
 
   setConfig(config) {
-    if (!config.currentEntity) {
-      throw new Error("You need to define an entity for greenness data.");
+    if (!config.currentEntity && !config.historyEntity) {
+      throw new Error("You need to define at least one of currentEntity or historyEntity for greenness data.");
     }
     const defaultConfig = {
       title: "Greenness Forecast",
@@ -251,7 +399,7 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
       highLimit: 60,
       highlighted: true,
       showTimes: false,
-      showDays: 7,
+      showDays: config.historyEntity ? 14 : 7,
       showHighlighted: true,
       highlightedEmoji: "👑",
       hour12: true,
@@ -260,6 +408,10 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
       ...defaultConfig,
       ...config,
     };
+    // If historyEntity is set, force showTimes to false
+    if (this._config.historyEntity) {
+      this._config.showTimes = false;
+    }
   }
 
   getCardSize() {
