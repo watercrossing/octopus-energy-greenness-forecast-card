@@ -169,11 +169,16 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
 
       const day = startTime.toLocaleDateString("en-US", {
         weekday: "short",
+        timeZone: "Europe/London",
       }); // Adjusted for specific locale
       const month = startTime.toLocaleDateString("en-US", {
         month: "short",
+        timeZone: "Europe/London",
       });
-      const dayNum = startTime.getDate(); // Get day as a number
+      const dayNum = startTime.toLocaleDateString("en-US", {
+        day: "numeric",
+        timeZone: "Europe/London",
+      }); // Get day as a number in UK timezone
 
       const dateDisplay = `${day} ${dayNum} ${month}`; // Adjusted format
       let highlighted = "&nbsp;"; // Initialize as empty
@@ -186,6 +191,7 @@ class OctopusEnergyGreennessForecastCard extends HTMLElement {
         hour: "2-digit",
         minute: "2-digit",
         hour12: config.hour12 !== undefined ? config.hour12 : true,
+        timeZone: "Europe/London",
       };
       const startTimeDisplay = startTime.toLocaleTimeString(
         hass.language || "default",
